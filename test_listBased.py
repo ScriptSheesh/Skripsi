@@ -29,7 +29,7 @@ def get_db():
 def load_phishing_urls():
     try:
         df = pd.read_csv('normalized_DatasetUrl.csv', header=None, dtype=str, on_bad_lines='skip')
-        return df[0].tolist()  # Assuming the phishing URLs are in the second column
+        return df[0].tolist() 
     except pd.errors.ParserError:
         print("Error parsing CSV file. Check the file format.")
         return []
