@@ -7,3 +7,6 @@ Dataset Source Reference:
 5. https://www.kaggle.com/datasets/mmelgizin/phishing-websites-dataset (2023)
 6. https://github.com/gangeshbaskerr/Phishing-Website-Detection (2023) 
 7. https://archive.ics.uci.edu/dataset/967/phiusiil+phishing+url+dataset (3/3/2024)
+8. https://github.com/mitchellkrogza/Phishing.Database/blob/master/phishing-links-ACTIVE.txt (2024)
+9. https://openphish.com/phishing_feeds.html (2024)
+10.https://www.phishtank.com/phish_search.php?page=1&active=y&valid=y&Search=Search (2024)  
