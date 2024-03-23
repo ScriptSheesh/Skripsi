@@ -42,6 +42,7 @@ def webhook():
     twiml_response.message(response)
     return str(twiml_response)
 
+#logic here
 def process_message(cursor, sender_number, message):
     # Check if the message contains a URL
     if contains_url(message):
