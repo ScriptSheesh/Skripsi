@@ -16,7 +16,7 @@ def init_db():
                                 message_body TEXT,
                                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                                 count INTEGER DEFAULT 1
-                              )''')
+                              )''')  
             conn.commit()
 
 # Function to get the database connection

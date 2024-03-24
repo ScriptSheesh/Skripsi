@@ -1,12 +1,12 @@
 Dataset Source Reference:
 ==========================
-1. https://www.kaggle.com/datasets/shashwatwork/phishing-dataset-for-machine-learning/data | https://data.mendeley.com/datasets/h3cgnj8hft/1 (24 March 2018)
+1. [USESD] https://www.kaggle.com/datasets/shashwatwork/phishing-dataset-for-machine-learning/data | https://data.mendeley.com/datasets/h3cgnj8hft/1 (24 March 2018)
 2. https://github.com/GregaVrbancic/Phishing-Dataset (2020)
-3. https://www.kaggle.com/datasets/shashwatwork/web-page-phishing-detection-dataset | https://data.mendeley.com/datasets/c2gw7fy2j4/3 (26 June 2021)
+3. [USESD] https://www.kaggle.com/datasets/shashwatwork/web-page-phishing-detection-dataset | https://data.mendeley.com/datasets/c2gw7fy2j4/3 (26 June 2021)
 4. https://github.com/Rohith-2/url_classification_dl (2021)
 5. https://www.kaggle.com/datasets/mmelgizin/phishing-websites-dataset (2023)
 6. https://github.com/gangeshbaskerr/Phishing-Website-Detection (2023) 
-7. https://archive.ics.uci.edu/dataset/967/phiusiil+phishing+url+dataset (3/3/2024)
-8. https://github.com/mitchellkrogza/Phishing.Database/blob/master/phishing-links-ACTIVE.txt (2024)
-9. https://openphish.com/phishing_feeds.html (2024)
-10.https://www.phishtank.com/phish_search.php?page=1&active=y&valid=y&Search=Search (2024)  
+7. [USESD] https://archive.ics.uci.edu/dataset/967/phiusiil+phishing+url+dataset (3/3/2024)
+8. [USESD] https://github.com/mitchellkrogza/Phishing.Database/blob/master/phishing-links-ACTIVE.txt (2024)
+9. [USESD] https://openphish.com/phishing_feeds.html (2024)
+10.[USESD] https://www.phishtank.com/phish_search.php?page=1&active=y&valid=y&Search=Search (2024)  
