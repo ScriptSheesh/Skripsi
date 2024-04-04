@@ -117,7 +117,6 @@ def check_and_save_rulebased(url):
     cursor.execute("INSERT INTO rulebased (url, domain_age, tld, is_cyrillic, phishing_chance, region, isp) VALUES (?, ?, ?, ?, ?, ?, ?)", 
                    (url, domain_age, 'umum' if is_common_tld else 'tidak umum', 1 if is_cyrillic else 0, phishing_chance, region, isp))
     db.commit()
-
     rule_based_response = f"-----------------------\n 🔍 Hasil Analisa 🔍 \n -----------------------\n URL 🔗 : {url}\n Top Level Domain (TLD) 🌐: {'Umum' if is_common_tld else 'Tidak Umum'}\n Karakter Cyrillic 🆎 : {'Mengandung Karakter Cyrillic' if is_cyrillic else 'Tidak Mengandung Karakter Cyrillic'}\n Usia Domain⏳: {domain_age}\n Domain Region 🌍 : {region}\n ISP 💻 : {isp}\n SSL Version 🔒 : {ssl_version}\n" 
     return rule_based_response, phishing_chance
 
