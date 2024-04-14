@@ -108,14 +108,19 @@ def contains_special_characters(url):
     return special_chars_count
 
 def calculate_domain_age(creation_date):
-    if creation_date:
-        now = datetime.datetime.now()
-        domain_age_years = (now - creation_date).days // 365
-        if domain_age_years < 1:
-            return "Less than a year"
-        else:
-            return f"{domain_age_years}"
-    return "Unknown"
+        if isinstance(creation_date, list):
+            creation_date = creation_date[0]  # Assuming the first item in the list is the correct creation date
+        if creation_date:
+            now = datetime.datetime.now()
+            if isinstance(creation_date, datetime.datetime):
+                domain_age_years = (now - creation_date).days // 365
+                if domain_age_years < 1:
+                    return "Less than a year"
+                else:
+                    return f"{domain_age_years}"
+            else:
+                return "Invalid creation date format"
+        return "Unknown"
 
 def get_domain_age_from_url(url):
     try:
@@ -380,7 +385,7 @@ def check_and_save_rulebased(url):
         ))
         db.commit()
 
-        rule_based_response = rule_based_response = f"-----------------------\n 🔍 Hasil Analisa 🔍 \n -----------------------\n URL 🔗 : {url}\n Top Level Domain (TLD) 🌐: {tld}\n Usia Domain (Tahun): {domain_age}\n Terdapat Spesial Karakter❗: {count_special_char}\n Submit Button 📥: {'Terdeteksi' if has_submit_button else 'Tidak Terdeteksi'}\n Password Field 🔑: {'Terdeteksi' if has_password_field else 'Tidak Terdeteksi'}\n Iframe 🖼️: {iframe_count}\n JS: {'Terdeteksi' if js_criteria else 'Tidak Terdeteksi'}\n NoJS: {noJS}\n HTTPS: {'Ya' if https else 'Tidak'}\n UrlLength: {url_length}\n HasTitle: {'Terdeteksi' if title else 'Tidak Terdeteksi'}\n Obfuscated: {'Terdeteksi' if is_obfuscated else 'Tidak Terdeteksi'}\n RedirectURL: {'Terdeteksi' if redirected_url else 'Tidak Terdeteksi'}\n TitleScore: {TitleScore}\n Judul: {JudulText}\n SSL Version 🔒 : {ssl_version}\n Karakter Cyrillic 🆎 : {'Mengandung Karakter Cyrillic' if is_cyrillic else 'Tidak Mengandung Karakter Cyrillic'}\n " 
+        rule_based_response = rule_based_response = f"-----------------------\n 🔍 Hasil Analisa 🔍 \n -----------------------\n URL 🔗 : {url}\n Top Level Domain (TLD) 🌐: {tld}\n Usia Domain: {domain_age} tahun\n Terdapat Spesial Karakter❗: {count_special_char}\n Submit Button 📥: {'Terdeteksi' if has_submit_button else 'Tidak Terdeteksi'}\n Password Field 🔑: {'Terdeteksi' if has_password_field else 'Tidak Terdeteksi'}\n Iframe 🖼️: {iframe_count}\n JS: {'Terdeteksi' if js_criteria else 'Tidak Terdeteksi'}\n NoJS: {noJS}\n HTTPS: {'Ya' if https else 'Tidak'}\n UrlLength: {url_length}\n HasTitle: {'Terdeteksi' if title else 'Tidak Terdeteksi'}\n Obfuscated: {'Terdeteksi' if is_obfuscated else 'Tidak Terdeteksi'}\n RedirectURL: {'Terdeteksi' if redirected_url else 'Tidak Terdeteksi'}\n TitleScore: {TitleScore}\n Judul: {JudulText}\n SSL Version 🔒 : {ssl_version}\n Karakter Cyrillic 🆎 : {'Mengandung Karakter Cyrillic' if is_cyrillic else 'Tidak Mengandung Karakter Cyrillic'}\n " 
         return rule_based_response, phishing_chance
     except Exception as e:
         print(f"Error during URL analysis: {e}")
