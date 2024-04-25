@@ -1,4 +1,3 @@
-import logging
 from flask import Flask, request, g
 from twilio.twiml.messaging_response import MessagingResponse
 from urllib.parse import urlparse
@@ -16,9 +15,6 @@ import whois
 import datetime
 
 app = Flask(__name__)
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     def __init__(self, db_name='messages.db'):
@@ -91,7 +87,7 @@ class URLAnalyzer:
                 with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                     return ssock.version()
         except Exception as e:
-            logger.error(f"Error retrieving SSL version: {e}")
+            print(f"Error retrieving SSL version: {e}")
             return "Error: URL not found or SSL version could not be retrieved"
 
     @staticmethod
@@ -125,7 +121,7 @@ class URLAnalyzer:
             else:
                 return "Creation date not found"
         except Exception as e:
-            logger.error(f"Error retrieving WHOIS data for {url}: {e}")
+            print(f"Error retrieving WHOIS data for {url}: {e}")
             return "Error"
 
     @staticmethod
@@ -146,10 +142,9 @@ class URLAnalyzer:
             
             return submit_button is not None
         except Exception as e:
-            logger.error(f"Error checking for submit button: {e}")
+            print(f"Error checking for submit button: {e}")
             return False
 
-    @staticmethod
     def check_password_field(url):
         try:
             response = requests.get(url)
@@ -159,11 +154,10 @@ class URLAnalyzer:
             
             return password_field is not None
         except Exception as e:
-            logger.error(f"Error checking for password field: {e}")
+            print(f"Error checking for password field: {e}")
             return False
     
         
-    @staticmethod
     def count_iframes(url):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
@@ -174,13 +168,12 @@ class URLAnalyzer:
             iframes = soup.find_all('iframe')
             return len(iframes)
         except RequestException as e:
-            logger.error(f"Request exception occurred: {e}")
+            print(f"Request exception occurred: {e}")
             return 0
         except Exception as e:
-            logger.error(f"General error occurred: {e}")
+            print(f"General error occurred: {e}")
             return 0
     
-    @staticmethod
     def detect_obfuscated(url):
         decoded_url = urllib.parse.unquote(url)
         if url != decoded_url:
@@ -188,7 +181,6 @@ class URLAnalyzer:
         else:
             return 0 
     
-    @staticmethod
     def detect_url_redirect(url):
         try:
             response = requests.get(url, allow_redirects=False)
@@ -209,10 +201,9 @@ class URLAnalyzer:
                         return 1 
                 return 0
         except Exception as e:
-            logger.error("Error:", e)
+            print("Error:", e)
             return 0
 
-    @staticmethod
     def count_javascript_elements(url):
         try:
             response = requests.get(url)
@@ -221,23 +212,20 @@ class URLAnalyzer:
             scripts = soup.find_all('script')
             return len(scripts)
         except Exception as e:
-            logger.error(f"Error counting JavaScript elements: {e}")
+            print(f"Error counting JavaScript elements: {e}")
             return 0
         
-    @staticmethod
     def is_https(url):
         try:
             response = requests.get(url)
             return response.url.startswith('https')
         except Exception as e:
-            logger.error(f"Error checking HTTPS: {e}")
+            print(f"Error checking HTTPS: {e}")
             return False
             
-    @staticmethod
     def get_url_length(url):
         return len(url)
 
-    @staticmethod
     def has_url_title(url):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -252,7 +240,6 @@ class URLAnalyzer:
         except Exception:
             return 0 
 
-    @staticmethod
     def get_webpage_title(url):
         try:
             response = requests.get(url, timeout=10)
@@ -269,7 +256,6 @@ class URLAnalyzer:
         except requests.exceptions.RequestException as e:
             return f"Request error: {e}"
 
-    @staticmethod
     def title_match_scoring(webpage_title, url):
         def url_title_match_score(t_set, txt_url):
             score = 0
@@ -305,34 +291,37 @@ class WebhookHandler:
         message_body = request.values.get('Body', None)
         sender_number = request.values.get('From', None)
 
-        responses = WebhookHandler().process_message(cursor, sender_number, message_body, db)
+        response = WebhookHandler().process_message(cursor, sender_number, message_body, db)
 
         cursor.close()
 
         twiml_response = MessagingResponse()
-        twiml_response.message(responses)
-        return str(twiml_response), 200
+        twiml_response.message(response)
+        return str(twiml_response)
 
-    def process_message(self, cursor, sender_number, message, db):
-        urls = [url.strip() for url in message.split(',') if URLAnalyzer.contains_url(url)]
-
-        if not urls:
-            return "No valid URLs found in your message."
+    
+    def load_phishing_urls(self):
+        try:
+            df = pd.read_csv('normalized_DatasetUrl.csv', header=None, dtype=str, on_bad_lines='skip')
+            urls = df[0].tolist()
+            urls_with_slash = [url if url.endswith('/') else url + '/' for url in urls]
+            return urls_with_slash
+        except pd.errors.ParserError:
+            print("Error parsing CSV file. Check the file format.")
+            return []
+        
+    def process_message(self, cursor, sender_number, message, db):  # Add db as a parameter
+        if URLAnalyzer.contains_url(message):
+            urls = [url.strip() for url in message.split(',')]
         responses = []
 
-        # Check if there are two URLs
-        if len(urls) == 2:
-            url1, url2 = urls  # Split the list into two URLs
-            analysis_result1, phishing_chance1 = self.check_and_save_rulebased(url1)
-            analysis_result2, phishing_chance2 = self.check_and_save_rulebased(url2)
-
-            # Append responses for both URLs
-            responses.append(f"Analysis for URL {url1}:\n{analysis_result1}Phishing likelihood 🚩: {phishing_chance1}")
-            responses.append(f"Analysis for URL {url2}:\n{analysis_result2}Phishing likelihood 🚩: {phishing_chance2}")
-
-        else:
-            # Process each URL individually
-            for url in urls:
+        for url in urls:
+            phishing_urls = self.load_phishing_urls()  # Load phishing URLs from CSV file
+            
+            if url in phishing_urls or url + '/' in phishing_urls:
+                list_based_response = f"\nURL {url} terdeteksi merupakan phishing pada database kami.\n"
+                responses.append(list_based_response)
+            else:
                 cursor.execute("SELECT * FROM rulebased WHERE url=?", (url,))
                 result = cursor.fetchone()
 
@@ -347,37 +336,26 @@ class WebhookHandler:
                     elif "Error: URL analysis failed" in analysis_result:
                         responses.append(f"Analysis for URL {url} could not be completed due to an error.")
                     else:
-                        phishing_urls = self.load_phishing_urls()
-                        if url in phishing_urls or url + '/' in phishing_urls:
-                            list_based_response = f"\nURL {url} terdeteksi merupakan phishing pada database kami.\n"
+                        self.db_manager.save_message_if_not_exists(sender_number, url)
+                        cursor.execute("SELECT timestamp, count FROM messages WHERE message_body=?", (url,))
+                        result = cursor.fetchone()
+                        if result:
+                            timestamp, count = result
+                            cursor.execute("UPDATE messages SET timestamp=CURRENT_TIMESTAMP, count=? WHERE message_body=?", (count + 1, url))
+                            db.commit()  # Use db here instead of just commit()
+                            list_based_response = f"\nURL {url} tidak ditemukan dalam database phishing kami.\nTerakhir dilaporkan pada {timestamp} sebanyak {count} kali.\n"
                         else:
-                            self.db_manager.save_message_if_not_exists(sender_number, url)
-                            cursor.execute("SELECT timestamp, count FROM messages WHERE message_body=?", (url,))
-                            result = cursor.fetchone()
-                            if result:
-                                timestamp, count = result
-                                cursor.execute("UPDATE messages SET timestamp=CURRENT_TIMESTAMP, count=? WHERE message_body=?", (count + 1, url))
-                                db.commit() 
-                                list_based_response = f"\nURL {url} tidak ditemukan dalam database phishing kami.\nTerakhir dilaporkan pada {timestamp} sebanyak {count} kali.\n"
-                            else:
-                                list_based_response = ""
+                            list_based_response = ""
 
                         response_message = f"{list_based_response}{analysis_result}Kemungkinan phishing 🚩: {phishing_chance}"
                         responses.append(response_message)
 
-        return '\n'.join(responses) if responses else "URL yang Anda masukkan tidak valid. Silakan masukkan URL yang valid."
+            return '\n'.join(responses)
+        else:
+         return "URL yang Anda masukkan tidak valid. Silakan masukkan URL yang valid."
 
 
-    def load_phishing_urls(self):
-        try:
-            df = pd.read_csv('normalized_DatasetUrl.csv', header=None, dtype=str, on_bad_lines='skip')
-            urls = df[0].tolist()
-            urls_with_slash = [url if url.endswith('/') else url + '/' for url in urls]
-            return urls_with_slash
-        except pd.errors.ParserError:
-            logger.error("Error parsing CSV file. Check the file format.")
-            return []
-
+    
     def check_and_save_rulebased(self, url):
         ssl_version = URLAnalyzer.get_ssl_version(url)
         if ssl_version == "Error: URL not found or SSL version could not be retrieved":
@@ -436,7 +414,7 @@ class WebhookHandler:
             rule_based_response = f"-----------------------\n 🔍 Hasil Analisa 🔍 \n -----------------------\n URL 🔗 : {url}\n Top Level Domain (TLD) 🌐: {tld}\n Usia Domain (Tahun): {domain_age} tahun\n Terdapat Spesial Karakter❗: {special_char_count}\n Submit Button 📥: {'Terdeteksi' if has_submit_button else 'Tidak Terdeteksi'}\n Password Field 🔑: {'Terdeteksi' if has_password_field else 'Tidak Terdeteksi'}\n Iframe 🖼️: {iframe_count}\n JS: {'Terdeteksi' if js_count else 'Tidak Terdeteksi'}\n HTTPS: {'Ya' if https else 'Tidak'}\n UrlLength: {url_length}\n HasTitle: {'Terdeteksi' if has_title else 'Tidak Terdeteksi'}\n Obfuscated: {'Terdeteksi' if is_obfuscated else 'Tidak Terdeteksi'}\n RedirectURL: {'Terdeteksi' if redirected_url else 'Tidak Terdeteksi'}\n TitleScore: {title_score}\n Judul: {webpage_title}\n SSL Version 🔒 : {ssl_version}\n Karakter Cyrillic 🆎 : {'Mengandung Karakter Cyrillic' if is_cyrillic else 'Tidak Mengandung Karakter Cyrillic'}\n " 
             return rule_based_response, phishing_chance
         except Exception as e:
-            logger.error(f"Error during URL analysis: {e}")
+            print(f"Error during URL analysis: {e}")
             return "Error: URL analysis failed due to an exception: {str(e)}", "N/A"
 
 if __name__ == "__main__":

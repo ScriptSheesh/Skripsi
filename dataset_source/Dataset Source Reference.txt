@@ -1,0 +1,7 @@
+Dataset Source Reference For List_Based:
+==========================
+1. [USED] https://www.kaggle.com/datasets/shashwatwork/web-page-phishing-detection-dataset | https://data.mendeley.com/datasets/c2gw7fy2j4/3 (26 June 2021)
+2. [USED] https://archive.ics.uci.edu/dataset/967/phiusiil+phishing+url+dataset (3/3/2024)
+3. [USED] https://github.com/mitchellkrogza/Phishing.Database/blob/master/phishing-links-ACTIVE.txt (2024)
+4. [USED] https://openphish.com/phishing_feeds.html (2024)
+5. [USED] https://www.phishtank.com/phish_search.php?page=1&active=y&valid=y&Search=Search (2024)  
