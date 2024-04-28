@@ -1,62 +1,71 @@
+import pandas as pd
+import sqlite3
+import re
+import ssl
+import socket
+import requests
 from flask import Flask, request, g
 from twilio.twiml.messaging_response import MessagingResponse
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
-from requests.exceptions import RequestException
-import pandas as pd
-import sqlite3
-import re
-import socket
-import ssl
-import requests
+from flask_executor import Executor
+from sklearn.feature_extraction import FeatureHasher
+from joblib import load
 import tldextract
 import urllib.parse
 import whois
 import datetime
+from requests.exceptions import RequestException
+
+# Load the saved pipeline
+pipeline = load('LightGBM.joblib')
 
 app = Flask(__name__)
+executor = Executor(app)
 
 class DatabaseManager:
     def __init__(self, db_name='messages.db'):
         self.db_name = db_name
+        self.init_db()
 
     def init_db(self):
         with app.app_context():
-            with sqlite3.connect(self.db_name) as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS messages (
-                        id INTEGER PRIMARY KEY,
-                        sender_number TEXT,
-                        message_body TEXT,
-                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        count INTEGER DEFAULT 1
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS rulebased (
-                        id INTEGER PRIMARY KEY,
-                        url TEXT,
-                        tld TEXT,
-                        domain_age INTEGER,
-                        special_char INTEGER,
-                        has_submit_button INTEGER,
-                        has_password_field INTEGER,
-                        iframe_count INTEGER,
-                        js_count INTEGER,
-                        is_https INTEGER,
-                        get_url_length INTEGER,
-                        Hastitle INTEGER,
-                        is_obfuscated INTEGER,
-                        redirected_url TEXT,
-                        TitleScore INTEGER,
-                        get_webpage_title TEXT,
-                        phishing_chance TEXT,
-                        ssl_ver TEXT,
-                        is_cyrillic INTEGER
-                    )
-                ''')
-                conn.commit()
+            conn = sqlite3.connect(self.db_name)
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY,
+                    sender_number TEXT,
+                    message_body TEXT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    count INTEGER DEFAULT 1
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS rulebased (
+                    id INTEGER PRIMARY KEY,
+                    url TEXT,
+                    tld TEXT,
+                    domain_age INTEGER,
+                    special_char INTEGER,
+                    has_submit_button INTEGER,
+                    has_password_field INTEGER,
+                    iframe_count INTEGER,
+                    js_count INTEGER,
+                    is_https INTEGER,
+                    get_url_length INTEGER,
+                    Hastitle INTEGER,
+                    is_obfuscated INTEGER,
+                    redirected_url TEXT,
+                    TitleScore INTEGER,
+                    get_webpage_title TEXT,
+                    phishing_chance TEXT,
+                    ssl_ver TEXT,
+                    is_cyrillic INTEGER
+                )
+            ''')
+            conn.commit()
+            conn.close()
 
     def get_db(self):
         if 'db' not in g:
@@ -64,15 +73,15 @@ class DatabaseManager:
         return g.db
 
     def save_message_if_not_exists(self, sender_number, message):
-        db = self.get_db()
-        cursor = db.cursor()
-        cursor.execute("SELECT id FROM messages WHERE message_body=?", (message,))
-        result = cursor.fetchone()
-        if not result:
-            cursor.execute("INSERT INTO messages (sender_number, message_body) VALUES (?, ?)", (sender_number, message))
-            db.commit()
+        with self.get_db() as db:
+            cursor = db.cursor()
+            cursor.execute("SELECT id FROM messages WHERE message_body=?", (message,))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO messages (sender_number, message_body) VALUES (?, ?)", (sender_number, message))
+                db.commit()
 
 class URLAnalyzer:
+    # (Include all static methods from the provided code snippet here)
     @staticmethod
     def contains_url(message):
         parsed_url = urlparse(message)
@@ -88,7 +97,7 @@ class URLAnalyzer:
                     return ssock.version()
         except Exception as e:
             print(f"Error retrieving SSL version: {e}")
-            return "Error: URL not found or SSL version could not be retrieved"
+            return "Error: Situs tidak ditemukan"
 
     @staticmethod
     def contains_special_characters(url):
@@ -279,146 +288,68 @@ class URLAnalyzer:
         return score
 
 class WebhookHandler:
-    def __init__(self):
+    def __init__(self, app):
+        self.app = app
         self.db_manager = DatabaseManager()
+        self.app.route('/webhook', methods=['POST'])(self.webhook)
 
-    @staticmethod
-    @app.route("/webhook", methods=['POST'])
-    def webhook():
-        db = DatabaseManager().get_db()
-        cursor = db.cursor()
-
+    def webhook(self):
         message_body = request.values.get('Body', None)
         sender_number = request.values.get('From', None)
+        response = MessagingResponse()
+        response.message("Mohon tunggu sebentar, URL sedang diperika....")
 
-        response = WebhookHandler().process_message(cursor, sender_number, message_body, db)
-
-        cursor.close()
-
-        twiml_response = MessagingResponse()
-        twiml_response.message(response)
-        return str(twiml_response)
-
-    
-    def load_phishing_urls(self):
-        try:
-            df = pd.read_csv('normalized_DatasetUrl.csv', header=None, dtype=str, on_bad_lines='skip')
-            urls = df[0].tolist()
-            urls_with_slash = [url if url.endswith('/') else url + '/' for url in urls]
-            return urls_with_slash
-        except pd.errors.ParserError:
-            print("Error parsing CSV file. Check the file format.")
-            return []
-        
-    def process_message(self, cursor, sender_number, message, db):  # Add db as a parameter
-        if URLAnalyzer.contains_url(message):
-            urls = [url.strip() for url in message.split(',')]
-        final_responses = []
-
-        # Append the initial message separately
-        final_responses.append("Mohon tunggu sebentar, URL sedang diperiksa...")
-
-        for url in urls:
-            phishing_urls = self.load_phishing_urls()  # Load phishing URLs from CSV file
-            
-            if url in phishing_urls or url + '/' in phishing_urls:
-                list_based_response = f"\nURL {url} terdeteksi merupakan phishing pada database kami.\n"
-                final_responses.append(list_based_response)
-            else:
-                cursor.execute("SELECT * FROM rulebased WHERE url=?", (url,))
-                result = cursor.fetchone()
-
-                if result:
-                    response_message = f"\nURL {url} telah dilaporkan sebelumnya dan memiliki kemungkinan sebagai URL phishing 🚩: {result[10]}"
-                    final_responses.append(response_message)
-                else:
-                    analysis_result, phishing_chance = self.check_and_save_rulebased(url)
-
-                    if "Error: SSL version could not be retrieved" in analysis_result:
-                        final_responses.append(f"Analysis for URL {url} stopped: SSL version could not be retrieved, indicating the URL might be unreachable.")
-                    elif "Error: URL analysis failed" in analysis_result:
-                        final_responses.append(f"Analysis for URL {url} could not be completed due to an error.")
-                    else:
-                        self.db_manager.save_message_if_not_exists(sender_number, url)
-                        cursor.execute("SELECT timestamp, count FROM messages WHERE message_body=?", (url,))
-                        result = cursor.fetchone()
-                        if result:
-                            timestamp, count = result
-                            cursor.execute("UPDATE messages SET timestamp=CURRENT_TIMESTAMP, count=? WHERE message_body=?", (count + 1, url))
-                            db.commit()  # Use db here instead of just commit()
-                            list_based_response = f"\nURL {url} tidak ditemukan dalam database phishing kami.\nTerakhir dilaporkan pada {timestamp} sebanyak {count} kali.\n"
-                        else:
-                            list_based_response = ""
-
-                        response_message = f"{list_based_response}{analysis_result}Kemungkinan phishing 🚩: {phishing_chance}"
-                        final_responses.append(response_message)
-
-            return '\n'.join(final_responses)  # Convert list of responses to a single string
+        if URLAnalyzer.contains_url(message_body):
+            urls = [url.strip() for url in message_body.split(',')]
+            results_response = self.process_message(sender_number, urls)
+            response.message(results_response)
         else:
-            return "URL yang Anda masukkan tidak valid. Silakan masukkan URL yang valid."
-     
-    def check_and_save_rulebased(self, url):
-        ssl_version = URLAnalyzer.get_ssl_version(url)
-        if ssl_version == "Error: URL not found or SSL version could not be retrieved":
-            return "Error: SSL version could not be retrieved, possibly due to the URL being unreachable.", "N/A"
+            response.message("URL yang anda masukkan tidak valid. Silakan masukkan URL yang valid.")
+        return str(response)
+    
+    def process_message(self, sender_number, urls):
+        final_responses = ["🔍 Pemeriksaan Selesai 🔍\n -----------------------------"] 
+        for url in urls:
+            if url.endswith('/'):
+                url = url[:-1]
+            response_message, phishing_chance = self.analyze_url(url)
+            self.db_manager.save_message_if_not_exists(sender_number, url)
+            final_responses.append(f"URL 🌐: {url}\nKemungkinan Phishing 🚩: {phishing_chance}\n{response_message}")
+        return '\n'.join(final_responses)
 
-        try:
-            tld = URLAnalyzer.get_tld(url)
-            is_cyrillic = bool(re.search('[\u0400-\u04FF]', url))
-            special_char_count = URLAnalyzer.contains_special_characters(url)
-            has_submit_button = URLAnalyzer.check_submit_button(url)
-            has_password_field = URLAnalyzer.check_password_field(url)
-            iframe_count = URLAnalyzer.count_iframes(url)
-            is_obfuscated = URLAnalyzer.detect_obfuscated(url)
-            redirected_url = URLAnalyzer.detect_url_redirect(url)
-            js_count = URLAnalyzer.count_javascript_elements(url)
-            https = URLAnalyzer.is_https(url)
-            url_length = URLAnalyzer.get_url_length(url)
-            has_title = URLAnalyzer.has_url_title(url)
-            webpage_title = URLAnalyzer.get_webpage_title(url)
-            title_score = URLAnalyzer.title_match_scoring(webpage_title, url)
-            domain_age = URLAnalyzer.get_domain_age_from_url(url)
-                
-            criteria_met = sum([
-                is_cyrillic,
-                special_char_count,
-                not has_submit_button,
-                not has_password_field,
-                iframe_count > 0,
-                is_obfuscated,
-                redirected_url,
-                js_count > 10,
-                not https,
-                url_length > 34,
-                not has_title,
-                title_score
-            ])
-            
-            phishing_chance = "High" if criteria_met >= 12 else "Medium" if criteria_met >= 5 else "Low"
+    def analyze_url(self, url):
+        # Machine Learning based prediction
+        new_data_dict = {
+            'TLD': [URLAnalyzer.get_tld(url)],
+            'Domain_Age': [URLAnalyzer.get_domain_age_from_url(url)],
+            'special_char': [URLAnalyzer.contains_special_characters(url)],
+            'HasSubmitButton': [1 if URLAnalyzer.check_submit_button(url) else 0],
+            'HasPasswordField': [1 if URLAnalyzer.check_password_field(url) else 0],
+            'NoOfiFrame': [URLAnalyzer.count_iframes(url)],
+            'NoOfJS': [URLAnalyzer.count_javascript_elements(url)],
+            'IsHTTPS': [1 if URLAnalyzer.is_https(url) else 0],
+            'URLLength': [URLAnalyzer.get_url_length(url)],
+            'HasTitle': [URLAnalyzer.has_url_title(url)],
+            'HasObfuscation': [URLAnalyzer.detect_obfuscated(url)],
+            'NoOfURLRedirect': [URLAnalyzer.detect_url_redirect(url)],
+            'URLTitleMatchScore': [URLAnalyzer.title_match_scoring(URLAnalyzer.get_webpage_title(url), url)]
+        }
+        new_X = pd.DataFrame(new_data_dict)
 
-            db = self.db_manager.get_db()
-            cursor = db.cursor()
-            cursor.execute("""
-                INSERT INTO rulebased (
-                    url, tld, domain_age, special_char,has_submit_button, 
-                    has_password_field, iframe_count, js_count, is_https,
-                    get_url_length, Hastitle, is_obfuscated, redirected_url, TitleScore, get_webpage_title, phishing_chance, ssl_ver, is_cyrillic) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                url, tld, domain_age, special_char_count, 1 if has_submit_button else 0, 
-                1 if has_password_field else 0, iframe_count, js_count, 1 if https else 0, 
-                url_length, 1 if has_title else 0, 1 if is_obfuscated else 0, 
-                redirected_url, title_score, webpage_title, phishing_chance, ssl_version, 1 if is_cyrillic else 0 
-            ))
-            db.commit()
+        if 'TLD' in new_X.columns:
+            hasher = FeatureHasher(n_features=10, input_type='string')
+            hashed_features = hasher.transform(new_X['TLD'].apply(lambda x: [x])).toarray()
+            hashed_feature_names = [f'TLD_hashed_{i}' for i in range(10)]
+            new_X = pd.concat([new_X.drop('TLD', axis=1), pd.DataFrame(hashed_features, columns=hashed_feature_names, index=new_X.index)], axis=1)
 
-            rule_based_response = f"-----------------------\n 🔍 Hasil Analisa 🔍 \n -----------------------\n URL 🔗 : {url}\n Top Level Domain (TLD) 🌐: {tld}\n Usia Domain (Tahun): {domain_age} tahun\n Terdapat Spesial Karakter❗: {special_char_count}\n Submit Button 📥: {'Terdeteksi' if has_submit_button else 'Tidak Terdeteksi'}\n Password Field 🔑: {'Terdeteksi' if has_password_field else 'Tidak Terdeteksi'}\n Iframe 🖼️: {iframe_count}\n JS: {'Terdeteksi' if js_count else 'Tidak Terdeteksi'}\n HTTPS: {'Ya' if https else 'Tidak'}\n UrlLength: {url_length}\n HasTitle: {'Terdeteksi' if has_title else 'Tidak Terdeteksi'}\n Obfuscated: {'Terdeteksi' if is_obfuscated else 'Tidak Terdeteksi'}\n RedirectURL: {'Terdeteksi' if redirected_url else 'Tidak Terdeteksi'}\n TitleScore: {title_score}\n Judul: {webpage_title}\n SSL Version 🔒 : {ssl_version}\n Karakter Cyrillic 🆎 : {'Mengandung Karakter Cyrillic' if is_cyrillic else 'Tidak Mengandung Karakter Cyrillic'}\n " 
-            return rule_based_response, phishing_chance
-        except Exception as e:
-            print(f"Error during URL analysis: {e}")
-            return "Error: URL analysis failed due to an exception: {str(e)}", "N/A"
+        predictions = pipeline.predict(new_X)
+        phishing_chance = "Rendah" if predictions[0] == 1 else "Tinggi"
+        rule_based_response = f"Hasil Pemeriksaan 📊: {'Bukan Sebuah Phishing' if predictions[0] == 1 else 'Phishing'}"
+        return rule_based_response, phishing_chance
 
 if __name__ == "__main__":
-    db_manager = DatabaseManager()
-    db_manager.init_db()
+    app = Flask(__name__)
+    executor = Executor(app)
+    webhook_handler = WebhookHandler(app)
     app.run(debug=True)
+
