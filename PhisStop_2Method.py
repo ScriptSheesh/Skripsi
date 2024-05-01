@@ -1,4 +1,4 @@
-# List Based & Rules Based Approach Method 
+# List & Rules Based Approach Method 
 from flask import Flask, request, g
 from twilio.twiml.messaging_response import MessagingResponse
 from urllib.parse import urlparse
