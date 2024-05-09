@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 import pandas as pd
 
 app = Flask(__name__)
-# Function to initialize the database
+# Function to initialize the database                                 
 def init_db():
     with app.app_context():
         with sqlite3.connect('messages.db') as conn:
