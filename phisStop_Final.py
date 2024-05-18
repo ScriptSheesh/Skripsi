@@ -308,9 +308,40 @@ class WebhookHandler:
         sender_number = request.values.get('From', None)
         
         twiml_response = MessagingResponse()
+
+        if message_body.lower() == 'bantuan':
+            twiml_response.message(f"🔍 Informasi PhishBot 🔍\n\nPhishBot menggunakan 3 teknik utama dalam mendeteksi suatu URL phishing / tidak, yaitu:\n\n1. List-based\n2. Rule-based\n3. Learning-based\n\nDalam pendeteksian URL secara lebih dalam terdapat 3 aturan yang memiliki peran penting, yaitu:\n\n1. Penggunaan HTTPS pada suatu URL, hal tersebut menunjukan bahwa URL tersebut memiliki keamanan ekstra\n\n2. Jumlah JavaScript yang digunakan dalam suatu URL, bertujuan untuk mendeteksi aktivitas berbahaya yang dapat berjalan secara otomatis pada suatu website\n\n3. Usia dari suatu URL, akan memberikan indikasi semakin tua sebuah URL maka semakin dapat dipercaya\n\nSelalu waspada dan berhati-hati ya 😊\n\nKetik 'FAQ' / 'About Us' jika ingin tau lebih banyak (tanpa tanda kutip)")
+            return str(twiml_response)
         
+        if message_body.lower() == 'faq':
+            twiml_response.message(f"""❓ FAQ PhishBot ❓\n\n1. Apa itu List Based? (ketik '1FAQ' tanpa tanda kutip)\n2. Apa itu Rule Based? (ketik '2FAQ' tanpa tanda kutip)\n3. Apa itu Learning Based? (ketik '3FAQ' tanpa tanda kutip)\n4. Apa itu Karakater Cyrillic? (ketik '4FAQ' tanpa tanda kutip) """)
+            return str(twiml_response)
+        
+        if message_body.lower() == '1faq':
+            twiml_response.message(f"""❓ FAQ PhishBot List Based ❓\n\nPendekatan List Based menggunakan daftar yang telah dibuat sebelumnya untuk membuat keputusan\n\nContoh: Jika anda belum terdaftar pada KPPS maka anda tidak boleh melakukan pencoblosan dalam pemilu""")
+            return str(twiml_response)
+        
+        if message_body.lower() == '2faq':
+            twiml_response.message(f"""❓ FAQ PhishBot Rule Based ❓\n\nPendekatan Rule Based menggunakan aturan 'jika ini maka itu' yang telah ditentukan untuk membuat keputusan\n\nContoh: Jika pendapatan seseorang lebih dari $50,000 dan tidak ada catatan kriminal, maka pinjaman disetujui. Jika tidak, pinjaman ditolak.""")
+            return str(twiml_response)
+        
+        if message_body.lower() == '3faq':
+            twiml_response.message(f"""❓ FAQ PhishBot Learning Based ❓\n\nPendekatan Learning Based menggunakan komputer untuk belajar dari data masa lalu dan membuat keputusan berdasarkan pola yang dipelajari\n\nContoh: Sistem belajar dari pembelian sebelumnya untuk merekomendasikan produk yang mungkin disukai pengguna.""")
+            return str(twiml_response)
+        
+        if message_body.lower() == '4faq':
+            cyrillicEX = "https://www.pаypal.com"
+            realEX = "https://www.xn--pypal-4ve.com/"
+            twiml_response.message(f"""❓ FAQ PhishBot Karakter Cyrillic ❓\n\nKemudian, sebuah URL dapat dipalsukan juga menggunakan karakter cyrillic untuk menyamarkan domain atau alamat URL yang sebenarnya\n\nSebagai contoh URL phishing yang menggunakan karakter cyrillic adalah: {cyrillicEX}\n\nPerhatikan bahwa karakter 'а' di dalam URL tersebut sebenarnya adalah karakter cyrillic, bukan karakter Latin 'a'. Bentuk asli dari URL di atas dapat dilihat seperti ini {realEX} \n\nHal ini bisa menjadi trik untuk menipu pengguna yang mungkin tidak memperhatikan perbedaannya""")
+            return str(twiml_response)
+        
+        if message_body.lower() == 'about us':
+            twiml_response.message(f"""👥 About Us 👥\n\nPhishBot ini merupakan pengembangan bot whatsapp untuk mendeteksi URL phishing yang dilakukan demi memenuhi program skripsi Strata-1 Universitas Bina Nusantara, yang dikerjakan oleh:\n\n1. Andika Kusriyanto\n2. Faiz Zhafran\n3. Leonhard Andrew\n\nTerimakasih telah membantu kami dalam pengembangan PhishBot 🙏""")
+            return str(twiml_response)
+
         if not message_body or not URLAnalyzer.contains_url(message_body):
-            twiml_response.message("URL yang anda masukkan tidak valid. Silakan masukkan URL yang valid 🙁")  # Invalid URL message
+            urlEx = "https://example.com"
+            twiml_response.message(f"Halo! Selamat datang di PhisBot. Phishbot adalah chatbot yang dapat membantu anda menganalisis URL yang valid seperti {urlEx}\npada kolom chat untuk menentukan apakah URL tersebut phishing atau tidak\n\nKemudian jika ingin mengetahui informasi singkat mengenai PhishBot dapat mengetikan 'BANTUAN' pada kolom chat\n\nTerimakasih telah menggunakan PhishBot 😊")
             return str(twiml_response)
         
         twiml_response.message("Mohon tunggu sebentar, URL sedang diperika 😊")  # Add waiting message
@@ -321,14 +352,14 @@ class WebhookHandler:
         return str(twiml_response)
 
     def process_message(self, sender_number, urls):
-        final_responses = ["🔍 Pemeriksaan Selesai 🔍\n -----------------------------"]
+        final_responses = ["🔍 Pemeriksaan Selesai 🔍\n"]
         for url in urls:
             if url.endswith('/'):
                 url = url[:-1]
             
             # Check if URL is known phishing URL from CSV
             if url in known_phishing_urls:
-                response_message = "URL ini ada di database kami dan merupakan phishing \n -----------------------------"
+                response_message = "URL ini ada di database kami dan merupakan phishing\n"
                 phishing_chance = "Phishing"
             else:
                 # Check the local database for previous analysis results
