@@ -50,7 +50,7 @@ class DatabaseManager:
                 )
             ''')
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS rulebased (
+                CREATE TABLE IF NOT EXISTS final (
                     url TEXT PRIMARY KEY,
                     phishing_result INTEGER,
                     last_reported DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -73,7 +73,7 @@ class DatabaseManager:
 
     def check_and_save(self, sender_number, url):
         cursor = self.get_db().cursor()
-        cursor.execute("SELECT phishing_result FROM rulebased WHERE url=?", (url,))
+        cursor.execute("SELECT phishing_result FROM final WHERE url=?", (url,))
         result = cursor.fetchone()
         if result:
             return result
@@ -344,7 +344,7 @@ class WebhookHandler:
             twiml_response.message(f"Halo! Selamat datang di PhisBot. Phishbot adalah chatbot yang dapat membantu anda menganalisis URL yang valid seperti {urlEx}\npada kolom chat untuk menentukan apakah URL tersebut phishing atau tidak\n\nKemudian jika ingin mengetahui informasi singkat mengenai PhishBot dapat mengetikan 'BANTUAN' pada kolom chat\n\nTerimakasih telah menggunakan PhishBot 😊")
             return str(twiml_response)
         
-        twiml_response.message("Mohon tunggu sebentar, URL sedang diperika 😊")  # Add waiting message
+        twiml_response.message("Terimakasih telah menggunakan PhishBot 😊")  # Add waiting message
         urls = [url.strip() for url in message_body.split(',')]
         response = handler.process_message(sender_number, urls)
 
@@ -381,13 +381,13 @@ class WebhookHandler:
             # Feature extraction
             new_data_dict = {
                 'TLD': [URLAnalyzer.get_tld(url)],
-                'Domain_Age': [URLAnalyzer.get_domain_age_from_url(url)],
+                'Domain_Age': [URLAnalyzer.get_domain_age_from_url(url)], # main feature 1
                 'special_char': [URLAnalyzer.contains_special_characters(url)],
                 'HasSubmitButton': [1 if URLAnalyzer.check_submit_button(url) else 0],
                 'HasPasswordField': [1 if URLAnalyzer.check_password_field(url) else 0],
                 'NoOfiFrame': [URLAnalyzer.count_iframes(url)],
-                'NoOfJS': [URLAnalyzer.count_javascript_elements(url)],
-                'IsHTTPS': [1 if URLAnalyzer.is_https(url) else 0],
+                'NoOfJS': [URLAnalyzer.count_javascript_elements(url)], # main feature 2
+                'IsHTTPS': [1 if URLAnalyzer.is_https(url) else 0], # main feature 3
                 'URLLength': [URLAnalyzer.get_url_length(url)],
                 'HasTitle': [URLAnalyzer.has_url_title(url)],
                 'HasObfuscation': [URLAnalyzer.detect_obfuscated(url)],
@@ -409,13 +409,13 @@ class WebhookHandler:
             # Saving the result to the database
             db = self.db_manager.get_db()
             cursor = db.cursor()
-            cursor.execute("INSERT INTO rulebased (url, phishing_result) VALUES (?, ?) ON CONFLICT(url) DO UPDATE SET phishing_result=excluded.phishing_result", (url, phishing_chance))
+            cursor.execute("INSERT INTO final (url, phishing_result) VALUES (?, ?) ON CONFLICT(url) DO UPDATE SET phishing_result=excluded.phishing_result", (url, phishing_chance))
             db.commit()
 
             return rule_based_response, phishing_chance
         except Exception as e:
-            logging.error(f"Terjadi error dalam memeriksa {url}: {e}")
-            return f"Terjadi error pada: {url}", "Tidak dapat menentukan hasil 😞"
+            logging.error(f"Terjadi error dalam analisis {url}: {e}")
+            return f"404 Error: {url}", "Tidak dapat menentukan hasil 😞"
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

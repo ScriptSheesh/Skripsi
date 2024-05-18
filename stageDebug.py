@@ -50,7 +50,7 @@ class DatabaseManager:
                 )
             ''')
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS finalAnalyzed (
+                CREATE TABLE IF NOT EXISTS final (
                     url TEXT PRIMARY KEY,
                     phishing_result INTEGER,
                     last_reported DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -73,7 +73,7 @@ class DatabaseManager:
 
     def check_and_save(self, sender_number, url):
         cursor = self.get_db().cursor()
-        cursor.execute("SELECT phishing_result FROM rulebased WHERE url=?", (url,))
+        cursor.execute("SELECT phishing_result FROM final WHERE url=?", (url,))
         result = cursor.fetchone()
         if result:
             return result
@@ -98,7 +98,7 @@ class URLAnalyzer:
             return special_chars_count
         except Exception as e:
             logging.error(f"Error checking special characters in URL: {e}")
-            return 0
+            return -999
 
     @staticmethod
     def calculate_domain_age(creation_date):
@@ -113,8 +113,8 @@ class URLAnalyzer:
                 else:
                     return f"{domain_age_years}"
             else:
-                return "Invalid creation date format"
-        return "Unknown"
+                return -999
+        return -999
 
     @staticmethod
     def get_domain_age_from_url(url):
@@ -124,10 +124,10 @@ class URLAnalyzer:
             if w.creation_date is not None:
                 return URLAnalyzer.calculate_domain_age(w.creation_date)
             else:
-                return "Creation date not found"
+                return -999
         except Exception as e:
             print(f"Error retrieving WHOIS data for {url}: {e}")
-            return "Error"
+            return -999
 
     @staticmethod
     def get_tld(url):
@@ -136,7 +136,7 @@ class URLAnalyzer:
             return extracted.suffix
         except Exception as e:
             logging.error(f"Error extracting TLD from {url}: {e}")
-            return ""
+            return "-999"
 
     @staticmethod
     def check_submit_button(url):
@@ -152,7 +152,7 @@ class URLAnalyzer:
             return submit_button is not None
         except Exception as e:
             print(f"Error checking for submit button: {e}")
-            return False
+            return -999
 
     @staticmethod
     def check_password_field(url):
@@ -165,7 +165,7 @@ class URLAnalyzer:
             return password_field is not None
         except Exception as e:
             print(f"Error checking for password field: {e}")
-            return False
+            return -999
     
     @staticmethod
     def count_iframes(url):
@@ -179,7 +179,7 @@ class URLAnalyzer:
             return len(iframes)
         except Exception as e:
             logging.error(f"Error counting iframes in {url}: {e}")
-            return 0
+            return -999
     
     @staticmethod
     def detect_obfuscated(url):
@@ -188,7 +188,7 @@ class URLAnalyzer:
             return 1 if url != decoded_url else 0
         except Exception as e:
             logging.error(f"Error detecting obfuscation in {url}: {e}")
-            return 0
+            return -999
     
     @staticmethod
     def detect_url_redirect(url):
@@ -210,7 +210,7 @@ class URLAnalyzer:
                     return True if match else False
         except Exception as e:
             logging.error(f"Error detecting URL redirects in {url}: {e}")
-            return False
+            return -999
 
     @staticmethod
     def count_javascript_elements(url):
@@ -222,7 +222,7 @@ class URLAnalyzer:
             return len(scripts)
         except Exception as e:
             logging.error(f"Error counting JavaScript elements in {url}: {e}")
-            return 0
+            return -999
         
     @staticmethod
     def is_https(url):
@@ -231,7 +231,7 @@ class URLAnalyzer:
             return response.url.startswith('https')
         except Exception as e:
             logging.error(f"Error checking HTTPS status for {url}: {e}")
-            return False
+            return -999
             
     @staticmethod
     def get_url_length(url):
@@ -253,7 +253,7 @@ class URLAnalyzer:
             return 1 if title and title.text.strip() else 0
         except Exception as e:
             logging.error(f"Error checking for URL title in {url}: {e}")
-            return 0
+            return -999
 
     @staticmethod
     def get_webpage_title(url):
@@ -293,7 +293,7 @@ class URLAnalyzer:
             return url_title_match_score(t_set, root_domain)
         except Exception as e:
             logging.error(f"Error scoring title match for {url}: {e}")
-            return 0
+            return -999
 
 class WebhookHandler:
     def __init__(self, db_manager):
@@ -344,7 +344,7 @@ class WebhookHandler:
             twiml_response.message(f"Halo! Selamat datang di PhisBot. Phishbot adalah chatbot yang dapat membantu anda menganalisis URL yang valid seperti {urlEx}\npada kolom chat untuk menentukan apakah URL tersebut phishing atau tidak\n\nKemudian jika ingin mengetahui informasi singkat mengenai PhishBot dapat mengetikan 'BANTUAN' pada kolom chat\n\nTerimakasih telah menggunakan PhishBot 😊")
             return str(twiml_response)
         
-        twiml_response.message("Mohon tunggu sebentar, URL sedang diperika 😊")  # Add waiting message
+        twiml_response.message("Terimakasih telah menggunakan PhishBot 😊")  # Add waiting message
         urls = [url.strip() for url in message_body.split(',')]
         response = handler.process_message(sender_number, urls)
 
@@ -381,13 +381,13 @@ class WebhookHandler:
             # Feature extraction
             new_data_dict = {
                 'TLD': [URLAnalyzer.get_tld(url)],
-                'Domain_Age': [URLAnalyzer.get_domain_age_from_url(url)],
+                'Domain_Age': [URLAnalyzer.get_domain_age_from_url(url)], # main feature 1
                 'special_char': [URLAnalyzer.contains_special_characters(url)],
                 'HasSubmitButton': [1 if URLAnalyzer.check_submit_button(url) else 0],
                 'HasPasswordField': [1 if URLAnalyzer.check_password_field(url) else 0],
                 'NoOfiFrame': [URLAnalyzer.count_iframes(url)],
-                'NoOfJS': [URLAnalyzer.count_javascript_elements(url)],
-                'IsHTTPS': [1 if URLAnalyzer.is_https(url) else 0],
+                'NoOfJS': [URLAnalyzer.count_javascript_elements(url)], # main feature 2
+                'IsHTTPS': [1 if URLAnalyzer.is_https(url) else 0], # main feature 3
                 'URLLength': [URLAnalyzer.get_url_length(url)],
                 'HasTitle': [URLAnalyzer.has_url_title(url)],
                 'HasObfuscation': [URLAnalyzer.detect_obfuscated(url)],
@@ -409,13 +409,13 @@ class WebhookHandler:
             # Saving the result to the database
             db = self.db_manager.get_db()
             cursor = db.cursor()
-            cursor.execute("INSERT INTO rulebased (url, phishing_result) VALUES (?, ?) ON CONFLICT(url) DO UPDATE SET phishing_result=excluded.phishing_result", (url, phishing_chance))
+            cursor.execute("INSERT INTO final (url, phishing_result) VALUES (?, ?) ON CONFLICT(url) DO UPDATE SET phishing_result=excluded.phishing_result", (url, phishing_chance))
             db.commit()
 
             return rule_based_response, phishing_chance
         except Exception as e:
-            logging.error(f"Terjadi error dalam memeriksa {url}: {e}")
-            return f"Terjadi error pada: {url}", "Tidak dapat menentukan hasil 😞"
+            logging.error(f"Terjadi error dalam analisis {url}: {e}")
+            return f"404 Error: {url}", "Tidak dapat menentukan hasil 😞"
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
