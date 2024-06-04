@@ -272,7 +272,7 @@ class URLAnalyzer:
             return len(url)
         except Exception as e:
             logging.error(f"Error getting URL length for {url}: {e}")
-            return 0
+            return -999
 
     @staticmethod
     def has_url_title(url):
