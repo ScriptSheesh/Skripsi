@@ -289,31 +289,41 @@ class URLAnalyzer:
             return -999
 
     @staticmethod
+    def get_webpage_title(url):
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                title_tag = soup.find('title')
+                return title_tag.text.strip() if title_tag else "Title not found"
+            else:
+                return "Failed to retrieve content"
+        except Exception as e:
+            logging.error(f"Error retrieving webpage title for {url}: {e}")
+            return "Error fetching title"
+
+    @staticmethod
     def title_match_scoring(webpage_title, url):
         try:
-            t_set = webpage_title.lower().split()
+            def url_title_match_score(t_set, txt_url):
+                score = 0
+                base_score = 100 / len(txt_url) if txt_url else 0
+                for element in t_set:
+                    if txt_url.find(element.lower()) >= 0:
+                        n = len(element)
+                        score += base_score * n
+                        txt_url = txt_url.replace(element.lower(), "", 1)
+                    if score > 99.9:
+                        score = 100
+                        break
+                return score
 
+            t_set = webpage_title.lower().split()
             parsed_url = urlparse(url)
             root_domain = parsed_url.netloc.lower()
-            root_domain = re.sub(r'^www.', '', root_domain)
+            root_domain = re.sub(r'^www\.', '', root_domain)
             root_domain = root_domain.split('.')[0]
-
-            if len(root_domain) > 0:
-                base_score = 100 / len(root_domain)
-            else:
-                base_score = 0
-
-            score = 0
-            for element in t_set:
-                if root_domain.find(element.lower()) >= 0:
-                    n = len(element)
-                    score += base_score * n
-                    root_domain = root_domain.replace(element.lower(), "", 1)
-                if score > 99.9:
-                    score = 100
-                    break
-
-            return score
+            return url_title_match_score(t_set, root_domain)
         except Exception as e:
             logging.error(f"Error scoring title match for {url}: {e}")
             return -999
