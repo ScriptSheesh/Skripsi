@@ -14,7 +14,6 @@ import idna
 from sklearn.feature_extraction import FeatureHasher
 import logging
 from joblib import load
-from sklearn.feature_extraction import FeatureHasher
 
 app = Flask(__name__)
 app.config['DEBUG'] = True
