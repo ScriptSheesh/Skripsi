@@ -287,6 +287,20 @@ class URLAnalyzer:
         except Exception as e:
             logging.error(f"Error checking for URL title in {url}: {e}")
             return -999
+        
+    @staticmethod
+    def get_webpage_title(url):
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                title_tag = soup.find('title')
+                return title_tag.text.strip() if title_tag else "Title not found"
+            else:
+                return "Failed to retrieve content"
+        except Exception as e:
+            logging.error(f"Error retrieving webpage title for {url}: {e}")
+            return "Error fetching title"
 
     @staticmethod
     def title_match_scoring(webpage_title, url):
